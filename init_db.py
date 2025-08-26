@@ -2,8 +2,6 @@
 from models import Base, engine
 
 
-Base.metadata.create_all(engine)
-
 def create_tables():
     '''Создание таблиц в БД'''
     print("Создаем таблицы...")
