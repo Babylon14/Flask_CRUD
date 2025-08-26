@@ -47,7 +47,7 @@ def add_announcement(announcement: Announcement) -> Announcement:
 '''Приветствие на главной странице сайта'''
 @app.route("/")
 def cmd_hello():
-    return "Добро пожаловать!"
+    return "Добро пожаловать на сайт Объявлений!"
 
 
 class AnnouncementView(MethodView):
@@ -102,7 +102,7 @@ app.add_url_rule("/announcement/", view_func=announcement_view, methods=["POST"]
 
 # Регистрация в маршрутизаторе методов GET, PATCH, DELETE
 app.add_url_rule(
-    "/announcement/<int:announcement_id>/",
+    "/announcement/<int:announcement_id>",
     view_func=announcement_view, methods=["GET", "PATCH", "DELETE"])
 
 

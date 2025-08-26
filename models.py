@@ -37,7 +37,7 @@ class Announcement(Base):
     headline: Mapped[str] = mapped_column(String, name="headline")
     description: Mapped[str] = mapped_column(String, name="description")
     created_at: Mapped[datetime.datetime] = mapped_column(DateTime, default=datetime.datetime.now)
-    owner: Mapped[str] = mapped_column(String, unique=True, name="owner")
+    owner: Mapped[str] = mapped_column(String, name="owner")
 
     @property
     def id_json(self):
