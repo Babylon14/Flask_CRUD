@@ -4,6 +4,7 @@ from sqlalchemy.exc import IntegrityError
 
 from models import Session, Announcement
 from errors import HttpError
+from schema import CreateAnnouncementRequest, UpdateAnnouncementRequest, validate
 
 
 app = Flask("app")
@@ -51,7 +52,7 @@ def cmd_hello():
 
 class AnnouncementView(MethodView):
     '''View-класс по обработке методов CRUD'''
-    
+
     def get(self, announcement_id: int):
         '''Получение объявлений'''
         announcement = get_announcement_by_id(announcement_id)
@@ -60,7 +61,7 @@ class AnnouncementView(MethodView):
 
     def post(self):
         '''Создание объявления'''
-        json_data = request.json
+        json_data = validate(CreateAnnouncementRequest, request.json)
         announcement = Announcement(
             headline=json_data["headline"],
             description=json_data["description"],
@@ -72,7 +73,7 @@ class AnnouncementView(MethodView):
 
     def patch(self, announcement_id: int):
         '''Изменение объявления'''
-        json_data = request.json
+        json_data = validate(UpdateAnnouncementRequest, request.json)
         announcement = get_announcement_by_id(announcement_id)
 
         if "headline" in json_data:
@@ -88,7 +89,10 @@ class AnnouncementView(MethodView):
 
     def delete(self, announcement_id: int):
         '''Удаление объявления'''
-        pass
+        announcement = get_announcement_by_id(announcement_id)
+        request.session.delete(announcement)
+        request.session.commit()
+        return jsonify({"Ответ": "Объявление успешно удалено!"})
 
 
 announcement_view = AnnouncementView.as_view("announcement_View")
