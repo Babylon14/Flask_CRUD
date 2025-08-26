@@ -1,11 +1,11 @@
 import os
 import datetime
 import atexit
-from sqlalchemy import create_engine, Integer, String, DateTime
-from sqlalchemy.orm import sessionmaker, DeclarativeBase, mapped_column, Mapped
+from sqlalchemy import create_engine, Integer, String, DateTime, ForeignKey
+from sqlalchemy.orm import sessionmaker, DeclarativeBase, mapped_column, Mapped, relationship
 
 from dotenv import load_dotenv
-
+from werkzeug.security import generate_password_hash, check_password_hash
 
 load_dotenv()
 
@@ -29,6 +29,34 @@ Session = sessionmaker(bind=engine)
 class Base(DeclarativeBase):
     pass
 
+# Модель Пользователь
+class User(Base):
+    __tablename__ = "users"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    email: Mapped[str] = mapped_column(String, name="email", unique=True, nullable=False)
+    password_hash: Mapped[str] = mapped_column(String, name="password", nullable=False)
+    created_at: Mapped[datetime.datetime] = mapped_column(DateTime, default=datetime.datetime.now)
+
+    # Связь с объявлениями
+    announcements = relationship("Announcement", back_populates="user")
+
+    def set_password(self, password: str):
+        '''Устанавливаем хэш пароля'''
+        self.password_hash = generate_password_hash(password)
+
+    def check_password(self, password: str) -> bool:
+        '''Проверяем пароль'''
+        return check_password_hash(self.password_hash, password)
+
+    @property
+    def json_format(self):
+        return {
+            "id": self.id,
+            "email": self.email,
+            "created_at": self.created_at.isoformat()
+        }
+
 # Модель Объявления
 class Announcement(Base):
     __tablename__ = "announcements"
@@ -38,6 +66,10 @@ class Announcement(Base):
     description: Mapped[str] = mapped_column(String, name="description")
     created_at: Mapped[datetime.datetime] = mapped_column(DateTime, default=datetime.datetime.now)
     owner: Mapped[str] = mapped_column(String, name="owner")
+
+    # Связь с пользователем
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"))
+    user = relationship("User", back_populates="announcements")
 
     @property
     def id_json(self):
@@ -50,7 +82,8 @@ class Announcement(Base):
             "headline": self.headline,
             "description": self.description,
             "created_at": self.created_at.isoformat(),
-            "owner": self.owner
+            "owner": self.owner,
+            "user_id": self.user_id
         }
 
 
