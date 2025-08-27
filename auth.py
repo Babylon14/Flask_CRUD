@@ -55,7 +55,7 @@ def get_current_user() -> User:
     
     try:
         # Разбиваем строку по пробелу: ["Bearer", "токен"]
-        token = auth_header.split(' ')[1]  # Берём второй элемент - сам токен
+        token = auth_header.split(" ")[1]  # Берём второй элемент - сам токен
         
         # Проверяем токен
         payload = verify_token(token)
@@ -66,7 +66,7 @@ def get_current_user() -> User:
         session = Session()
         
         # Ищем пользователя по ID из токена
-        user = session.get(User, payload['user_id'])
+        user = session.get(User, payload["user_id"])
         session.close()
     
         return user  # Возвращаем объект пользователя
@@ -83,10 +83,10 @@ def login_required(func) -> User:
         '''Это "обёртка" вокруг оригинальной функции'''
         user = get_current_user()  # Получаем текущего пользователя
         if not user:
-            return jsonify({"Ошибка": "Требуетс аутентификация!"}), 401
+            return jsonify({"Ошибка": "Требуется аутентификация!"}), 401
         request.current_user = user  # Если пользователь есть - сохраняем его в request
 
-        return func(*args, **kwargs) # Вызываем оригинальную функцию
+        return func(*args, **kwargs) # Возвращаем оригинальную функцию
     return decorated_function  # Возвращаем обёртку
 
 

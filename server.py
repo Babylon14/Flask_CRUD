@@ -2,7 +2,8 @@ from flask import Flask, jsonify, request
 from flask.views import MethodView
 from sqlalchemy.exc import IntegrityError
 
-from models import Session, Announcement
+from models import Session, Announcement, User
+from auth import login_required, check_announcement_owner, generate_token
 from errors import HttpError
 from schema import CreateAnnouncementRequest, UpdateAnnouncementRequest, validate
 
@@ -50,6 +51,63 @@ def cmd_hello():
     return "Добро пожаловать на сайт Объявлений!"
 
 
+class UserView(MethodView):
+    '''View-класс для работы с пользователями'''
+    
+    def post(self):
+        '''Регистрация пользователя'''
+        json_data = request.json
+
+        if not json_data.get("email") or not json_data.get("password"):
+            raise HttpError(status_code=404, message="Email и пароль обязательны!")
+
+        session = Session()
+        try:
+            user = User(email=json_data["email"])
+            user.set_password(json_data["password"])
+            session.add(user)
+            session.commit()
+            token = generate_token(user.id)
+            result = {
+                "user": user.json_format,
+                "token": token
+            }
+            session.close()
+            return jsonify(result), 201
+        except IntegrityError:
+            session.rollback()
+            session.close()
+            raise HttpError(409, "Пользователь с таким email уже существует")
+        except Exception as err:
+            session.rollback()
+            session.close()
+            raise HttpError(500, str(err))
+
+
+class AuthView(MethodView):
+    '''View-класс для аутентификации'''
+    
+    def post(self):
+        '''Вход пользователя'''
+        json_data = request.json
+        
+        if not json_data.get("email") or not json_data.get("password"):
+            raise HttpError(status_code=400, message="Email и пароль обязательны!")
+        
+        session = Session()
+        user = session.query(User).filter(User.email == json_data["email"]).first()
+        session.close()
+        
+        if not user or not user.check_password(json_data["password"]):
+            raise HttpError(status_code=401, message="Неверный email или пароль")
+        
+        token = generate_token(user.id)
+        return jsonify({
+            "user": user.json_format,
+            "token": token
+        })
+    
+
 class AnnouncementView(MethodView):
     '''View-класс по обработке методов CRUD'''
 
@@ -58,49 +116,45 @@ class AnnouncementView(MethodView):
         announcement = get_announcement_by_id(announcement_id)
         return jsonify(announcement.json_format)
     
-
+    @login_required
     def post(self):
-        '''Создание объявления'''
+        '''Создание объявления - только для авторизованных'''
         json_data = validate(CreateAnnouncementRequest, request.json)
         announcement = Announcement(
             headline=json_data["headline"],
             description=json_data["description"],
-            owner=json_data["owner"]
+            owner=json_data["owner"],
+            user_id=request.current_user.id
         )
         add_announcement(announcement)
         return jsonify(announcement.id_json)
 
-
+    @check_announcement_owner
     def patch(self, announcement_id: int):
-        '''Изменение объявления'''
-        json_data = validate(UpdateAnnouncementRequest, request.json)
-        announcement = get_announcement_by_id(announcement_id)
-
-        if "headline" in json_data:
-            announcement.headline = json_data["headline"]
-        if "description" in json_data:
-            announcement.description = json_data["description"]
-        if "owner" in json_data:
-            announcement.owner = json_data["owner"]
-
+        '''Изменение объявления - только для владельца'''
+        validated_data = validate(UpdateAnnouncementRequest, request.json)
+        
+        announcement = request.announcement
+        for field, value in validated_data.items():
+            setattr(announcement, field, value)
+    
         add_announcement(announcement)
         return jsonify(announcement.id_json)
 
-
+    @check_announcement_owner
     def delete(self, announcement_id: int):
-        '''Удаление объявления'''
-        announcement = get_announcement_by_id(announcement_id)
+        '''Удаление объявления - только для владельца'''
+        announcement = request.announcement
         request.session.delete(announcement)
         request.session.commit()
         return jsonify({"Ответ": "Объявление успешно удалено!"})
 
 
+app.add_url_rule("/register/", view_func=UserView.as_view("user_view"), methods=["POST"])
+app.add_url_rule("/login/", view_func=AuthView.as_view("auth_view"), methods=["POST"])
+
 announcement_view = AnnouncementView.as_view("announcement_View")
-
-# Регистрация в маршрутизаторе метода POST
 app.add_url_rule("/announcement/", view_func=announcement_view, methods=["POST"])
-
-# Регистрация в маршрутизаторе методов GET, PATCH, DELETE
 app.add_url_rule(
     "/announcement/<int:announcement_id>",
     view_func=announcement_view, methods=["GET", "PATCH", "DELETE"])
